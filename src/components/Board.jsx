@@ -8,10 +8,9 @@ const TARGET_H = 520;
 const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
 
 function wrapLerp(a, b, e, bw, bh) {
-  let dx = b.x - a.x, dy = b.y - a.y;
-  if (dx > bw / 2) dx -= bw; else if (dx < -bw / 2) dx += bw;
-  if (dy > bh / 2) dy -= bh; else if (dy < -bh / 2) dy += bh;
-  return { x: a.x + dx * e, y: a.y + dy * e };
+  // 先取 b 相对 a 的最近等价点，再在其间插值（实际环绕算术都在 toward 中）
+  const w = toward(a, b, bw, bh);
+  return { x: a.x + (w.x - a.x) * e, y: a.y + (w.y - a.y) * e };
 }
 
 /*
@@ -168,7 +167,7 @@ export default function Board({ state, snapKey = 0 }) {
 
   const { pts: ptsAnim, dir } = useAnimateSnake(state.snake, snapKey, cell, bw, bh, state.W, state.H);
   const d = polyToD(buildPolyline(ptsAnim, bw, bh));
-  const head = ptsAnim[0] || { x: stride * state.snake[0].c + cell / 2, y: stride * state.snake[0].r + cell / 2 };
+  const head = ptsAnim[0];
   const eyeList = eyes(head, dir, snakeW);
 
   // 环绕镜像：把整条蛇（折线 + 蛇头）在四周的等价位置各画一份，配合 viewBox 裁剪，

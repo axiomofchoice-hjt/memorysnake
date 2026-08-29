@@ -196,13 +196,10 @@ export function applyMove(prev, dir) {
   const bodySet = new Set();
   for (let i = 0; i < len - 1; i++) bodySet.add(keyOf(prev.snake[i].r, prev.snake[i].c));
   const hitKey = keyOf(nr, nc);
+  const lose = (reason) => Object.assign({}, prev, pureSnapshot(prev), { status: 'lost', reason, moves: prev.moves + 1, lastDir: dir });
 
-  if (target === '#') {
-    return Object.assign({}, prev, pureSnapshot(prev), { status: 'lost', reason: 'wall', moves: prev.moves + 1, lastDir: dir });
-  }
-  if (bodySet.has(hitKey)) {
-    return Object.assign({}, prev, pureSnapshot(prev), { status: 'lost', reason: 'self', moves: prev.moves + 1, lastDir: dir });
-  }
+  if (target === '#') return lose('wall');
+  if (bodySet.has(hitKey)) return lose('self');
 
   const newHead = { r: nr, c: nc };
   const newSnake = [newHead].concat(prev.snake.slice(0, len - 1));
@@ -216,9 +213,7 @@ export function applyMove(prev, dir) {
 
   // 门（大写字母，'D' 是终点不算门）：吃到对应钥匙前是墙（撞上=失败）；开门后变地板
   if (isDoorChar(target)) {
-    if (!prev.doorOpen.has(hitKey)) {
-      return Object.assign({}, prev, pureSnapshot(prev), { status: 'lost', reason: 'wall', moves: prev.moves + 1, lastDir: dir });
-    }
+    if (!prev.doorOpen.has(hitKey)) return lose('wall');
     return Object.assign({}, prev, base, { status: 'playing', won: false });
   }
 
