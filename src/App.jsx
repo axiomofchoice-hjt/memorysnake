@@ -92,7 +92,7 @@ export default function App() {
           <button className={`btn ${hardMode ? 'primary' : ''}`} onClick={() => setMode(!hardMode)}>
             模式：{hardMode ? '困难' : '简单'}
           </button>
-          <button className="btn" onClick={() => reset()}>重置</button>
+          <button className="btn" onClick={() => reset()}>重新开始</button>
         </div>
       </header>
 
