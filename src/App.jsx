@@ -26,9 +26,14 @@ export default function App() {
   const move = useCallback((dir) => {
     setGame((prev) => {
       if (!prev || prev.status !== 'playing') return prev;
-      return applyMove(prev, dir);
+      const next = applyMove(prev, dir);
+      // 简单模式：撞墙/撞自己不算失败，记为一次无效操作（蛇不动、继续游戏）
+      if (!hardMode && next.status === 'lost') {
+        return Object.assign({}, prev, { invalid: prev.invalid + 1 });
+      }
+      return next;
     });
-  }, []);
+  }, [hardMode]);
 
   const setMode = useCallback((hard) => {
     setHardMode(hard);
