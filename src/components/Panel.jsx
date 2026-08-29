@@ -9,7 +9,7 @@ export default function Panel({ game, hardMode }) {
       <div className="card">
         <div className="legend-title">状态</div>
         <div className="status-line"><span className="label">状态</span><span className={`val ${game.status}`} id="statusText">{statusText}</span></div>
-        <div className="status-line"><span className="label">步数</span><span className="val">{blind ? '—' : game.moves}</span></div>
+        <div className="status-line"><span className="label">步数</span><span className="val">{game.moves}</span></div>
       </div>
 
       <div className="card">
