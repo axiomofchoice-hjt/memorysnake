@@ -27,10 +27,8 @@ export default function App() {
     setGame((prev) => {
       if (!prev || prev.status !== 'playing') return prev;
       const next = applyMove(prev, dir);
-      // 简单模式：撞墙/撞自己不算失败，记为一次无效操作（蛇不动、继续游戏）
-      if (!hardMode && next.status === 'lost') {
-        return Object.assign({}, prev, { invalid: prev.invalid + 1 });
-      }
+      // 简单模式：撞墙/撞自己不算失败，蛇原地不动、继续游戏（不计次数）
+      if (!hardMode && next.status === 'lost') return prev;
       return next;
     });
   }, [hardMode]);

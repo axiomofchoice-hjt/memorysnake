@@ -112,7 +112,6 @@ export function createState(level) {
     status: 'playing',   // 'playing' | 'won' | 'lost'
     reason: null,        // 'wall' | 'self' | null
     moves: 0,
-    invalid: 0,          // 简单模式下“无效操作”计数（撞墙/撞自己不算失败）
     lastDir: null,
     won: false,
   };
