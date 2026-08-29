@@ -28,13 +28,8 @@ export default function Panel({ game, hardMode }) {
         <div className="hint"><kbd>WASD</kbd> / <kbd>方向键</kbd> 移动（一次一格）</div>
         <div className="hint"><kbd>R</kbd> 重置</div>
         <div className="hint"><kbd>M</kbd> 切换简单 / 困难</div>
-        <div className="hint"><kbd>1</kbd>–<kbd>2</kbd> 切换关卡</div>
-        <div className="hint">到达终点即胜利；门（大写字母）吃对应钥匙前是墙，吃到钥匙后开门变地板。钥匙与门外观相同、匹配隐藏。</div>
-        <div className="hint mode-note">
-          {hardMode
-            ? '困难模式：隐藏移动过程，只显示初始状态；到达终点或失败（撞墙/撞自己）才显示结果。'
-            : '简单模式：实时显示移动；撞墙/撞自己不算失败，记为一次无效操作（蛇不动）。'}
-        </div>
+        <div className="hint"><kbd>1</kbd>–<kbd>9</kbd> 切换关卡</div>
+        <div className="hint mode-note">困难模式：不显示移动，撞墙/撞身体即失败。</div>
       </div>
     </aside>
   );
