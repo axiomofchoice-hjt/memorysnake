@@ -17,12 +17,12 @@ function wrapLerp(a, b, e, bw, bh) {
 /*
  * 爬行动画：蛇头伸出、蛇尾收回；穿越边界时沿“最短环绕路径”滑动，头/尾会贴着边缘滑出再滑入。
  */
-function useAnimateSnake(snake, snapKey, cell, bw, bh) {
+function useAnimateSnake(snake, snapKey, cell, bw, bh, W, H) {
   const stride = cell + GAP;
   const center = (c) => ({ x: c.c * stride + cell / 2, y: c.r * stride + cell / 2 });
   const toPts = (cells) => cells.map(center);
   const fallbackDir = { dr: 1, dc: 0 };
-  const restState = (cells) => ({ pts: toPts(cells), dir: dirOf(cells) || fallbackDir });
+  const restState = (cells) => ({ pts: toPts(cells), dir: dirOf(cells, W, H) || fallbackDir });
 
   const [display, setDisplay] = useState(() => restState(snake));
   const prevCellsRef = useRef(snake);
@@ -47,8 +47,8 @@ function useAnimateSnake(snake, snapKey, cell, bw, bh) {
     const oldHead = fromPts[0], oldTail = fromPts[fromPts.length - 1];
     const newHead = to[0], newTail = to[to.length - 1];
     const body = to.slice(1);
-    const oldDir = dirOf(fromCells) || fallbackDir;
-    const newDir = dirOf(snake) || oldDir;
+    const oldDir = dirOf(fromCells, W, H) || fallbackDir;
+    const newDir = dirOf(snake, W, H) || oldDir;
 
     const start = performance.now();
     cancelAnimationFrame(rafRef.current);
@@ -67,17 +67,22 @@ function useAnimateSnake(snake, snapKey, cell, bw, bh) {
     };
     rafRef.current = requestAnimationFrame(step);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [snake, snapKey, cell, bw, bh]);
+  }, [snake, snapKey, cell, bw, bh, W, H]);
 
   return display;
 }
 
-// 只根据蛇身点求蛇头朝向；返回 null 表示无法确定（蛇头没有相邻身体格）
-function dirOf(snake) {
+// 只根据蛇身点求蛇头朝向；返回 null 表示无法确定（蛇头没有相邻身体格）。
+// 用边界尺寸 W/H 对行、列差做“最短环绕”处理，穿越边界后方向才不会反。
+function dirOf(snake, W, H) {
   const h = snake[0], n = snake[1];
   if (n) {
-    const dr = Math.sign(h.r - n.r), dc = Math.sign(h.c - n.c);
-    if (dr || dc) return { dr, dc };
+    let dc = h.c - n.c;
+    if (W) { if (dc > W / 2) dc -= W; else if (dc < -W / 2) dc += W; }
+    let dr = h.r - n.r;
+    if (H) { if (dr > H / 2) dr -= H; else if (dr < -H / 2) dr += H; }
+    const sdc = Math.sign(dc), sdr = Math.sign(dr);
+    if (sdr || sdc) return { dr: sdr, dc: sdc };
   }
   return null;
 }
@@ -161,7 +166,7 @@ export default function Board({ state, snapKey = 0 }) {
     return arr;
   }, [state]);
 
-  const { pts: ptsAnim, dir } = useAnimateSnake(state.snake, snapKey, cell, bw, bh);
+  const { pts: ptsAnim, dir } = useAnimateSnake(state.snake, snapKey, cell, bw, bh, state.W, state.H);
   const d = polyToD(buildPolyline(ptsAnim, bw, bh));
   const head = ptsAnim[0] || { x: stride * state.snake[0].c + cell / 2, y: stride * state.snake[0].r + cell / 2 };
   const eyeList = eyes(head, dir, snakeW);
