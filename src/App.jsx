@@ -98,7 +98,7 @@ export default function App() {
 
       <div className="layout">
         <div className="stage">
-          <Board state={shown} snapKey={snapKey} onMove={move} />
+          <Board state={shown} snapKey={snapKey} onMove={move} controlHead={game.snake[0]} />
         </div>
         <Panel
           game={game}

@@ -158,7 +158,7 @@ function dragDir(fr, fc, tr, tc) {
   return null;
 }
 
-export default function Board({ state, snapKey = 0, onMove }) {
+export default function Board({ state, snapKey = 0, onMove, controlHead }) {
   let cell = Math.floor(Math.min(
     (TARGET_W - (state.W - 1) * GAP) / state.W,
     (TARGET_H - (state.H - 1) * GAP) / state.H
@@ -189,7 +189,8 @@ export default function Board({ state, snapKey = 0, onMove }) {
     e.currentTarget.setPointerCapture && e.currentTarget.setPointerCapture(e.pointerId);
     const cell = pointerCell(e);
     dragRef.current = { last: cell };
-    const h = state.snake[0];
+    // 用真实游戏蛇头（controlHead）判断方向，硬模式下撞墙/门才会正确判为失败
+    const h = controlHead || state.snake[0];
     const dir = dirFrom(h.r, h.c, cell.r, cell.c, state.W, state.H);
     if (dir) onMove(dir);
   };
