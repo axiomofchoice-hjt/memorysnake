@@ -139,7 +139,26 @@ function buildPolyline(pts, bw, bh) {
 
 const polyToD = (s) => s.map((p, i) => (i ? 'L' : 'M') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ');
 
-export default function Board({ state, snapKey = 0 }) {
+// 两点（格子坐标）间的方向；两者恰好相邻时返回方向，否则 null
+function dirFrom(fr, fc, tr, tc, W, H) {
+  let dc = tc - fc; if (W) { if (dc > W / 2) dc -= W; else if (dc < -W / 2) dc += W; }
+  let dr = tr - fr; if (H) { if (dr > H / 2) dr -= H; else if (dr < -H / 2) dr += H; }
+  if (dr === 1 && dc === 0) return 'down';
+  if (dr === -1 && dc === 0) return 'up';
+  if (dr === 0 && dc === 1) return 'right';
+  if (dr === 0 && dc === -1) return 'left';
+  return null;
+}
+
+// 拖动时按“优势轴”给方向（按指针物理移动方向，不取环绕捷径）
+function dragDir(fr, fc, tr, tc) {
+  const dc = tc - fc, dr = tr - fr;
+  if (Math.abs(dc) >= Math.abs(dr) && dc !== 0) return dc > 0 ? 'right' : 'left';
+  if (dr !== 0) return dr > 0 ? 'down' : 'up';
+  return null;
+}
+
+export default function Board({ state, snapKey = 0, onMove }) {
   let cell = Math.floor(Math.min(
     (TARGET_W - (state.W - 1) * GAP) / state.W,
     (TARGET_H - (state.H - 1) * GAP) / state.H
@@ -149,6 +168,43 @@ export default function Board({ state, snapKey = 0 }) {
   const snakeW = Math.max(14, Math.min(46, Math.round(cell * 0.66)));
   const bw = state.W * stride - GAP;
   const bh = state.H * stride - GAP;
+
+  // 鼠标/触摸：点击相邻格子移动，按下后拖动可连续移动
+  const boardRef = useRef(null);
+  const dragRef = useRef(null); // { last: {r,c} }
+
+  const cellFromPoint = (x, y) => {
+    const c = Math.max(0, Math.min(state.W - 1, Math.floor(x / stride)));
+    const r = Math.max(0, Math.min(state.H - 1, Math.floor(y / stride)));
+    return { r, c };
+  };
+
+  const pointerCell = (e) => {
+    const rect = boardRef.current.getBoundingClientRect();
+    return cellFromPoint(e.clientX - rect.left, e.clientY - rect.top);
+  };
+
+  const handlePointerDown = (e) => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture && e.currentTarget.setPointerCapture(e.pointerId);
+    const cell = pointerCell(e);
+    dragRef.current = { last: cell };
+    const h = state.snake[0];
+    const dir = dirFrom(h.r, h.c, cell.r, cell.c, state.W, state.H);
+    if (dir) onMove(dir);
+  };
+
+  const handlePointerMove = (e) => {
+    if (!dragRef.current) return;
+    const cell = pointerCell(e);
+    const last = dragRef.current.last;
+    if (last.r === cell.r && last.c === cell.c) return;
+    dragRef.current.last = cell;
+    const dir = dragDir(last.r, last.c, cell.r, cell.c);
+    if (dir) onMove(dir);
+  };
+
+  const handlePointerEnd = () => { dragRef.current = null; };
 
   const tiles = useMemo(() => {
     const arr = [];
@@ -178,7 +234,16 @@ export default function Board({ state, snapKey = 0 }) {
   ];
 
   return (
-    <div className="board" style={{ '--cell': cell + 'px', width: bw, height: bh }}>
+    <div
+      ref={boardRef}
+      className="board"
+      style={{ '--cell': cell + 'px', width: bw, height: bh }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerEnd}
+      onPointerCancel={handlePointerEnd}
+      onPointerLeave={handlePointerEnd}
+    >
       <div
         className="grid"
         style={{

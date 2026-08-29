@@ -29,6 +29,7 @@ export default function Panel({ game, hardMode }) {
         <div className="hint"><kbd>R</kbd> 重新开始</div>
         <div className="hint"><kbd>M</kbd> 切换简单 / 困难模式</div>
         <div className="hint"><kbd>1</kbd>–<kbd>9</kbd> 切换关卡</div>
+        <div className="hint">鼠标：点击蛇头相邻格移动，按住拖动可连续移动。</div>
         <div className="hint">场地四边相通：从一边穿出，会从另一边进入。</div>
         <div className="hint mode-note">困难模式：不显示移动，撞墙/撞身体即失败。</div>
       </div>

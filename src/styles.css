@@ -82,7 +82,7 @@ body {
   box-shadow: 0 12px 34px rgba(60, 72, 100, .14);
 }
 
-.board { position: relative; margin: 0 auto; }
+.board { position: relative; margin: 0 auto; user-select: none; -webkit-user-select: none; touch-action: none; }
 
 /* 格子（颜色保持不变，仅调整在浅色板上的层次） */
 .grid { display: grid; }
