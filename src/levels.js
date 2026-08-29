@@ -51,4 +51,11 @@ export const LEVELS = [
     doors:[{r:1,c:3,letter:'A'},{r:1,c:5,letter:'B'},{r:1,c:6,letter:'B'},{r:1,c:7,letter:'B'},{r:1,c:8,letter:'B'},{r:1,c:9,letter:'B'},{r:7,c:1,letter:'B'}],
     keys:[{r:0,c:9,letter:'b'},{r:4,c:3,letter:'a'}],
   },
+  { w:15, h:7,
+    snake:[{r:0,c:0},{r:0,c:1},{r:0,c:2},{r:0,c:3},{r:0,c:4},{r:0,c:5},{r:0,c:6},{r:0,c:7},{r:0,c:8},{r:0,c:9},{r:0,c:10},{r:0,c:11},{r:0,c:12},{r:0,c:13},{r:0,c:14}],
+    goal:{r:4,c:0},
+    walls:[{r:1,c:0},{r:1,c:2},{r:1,c:3},{r:1,c:7},{r:1,c:8},{r:1,c:9},{r:1,c:11},{r:1,c:12},{r:1,c:13},{r:2,c:0},{r:2,c:4},{r:2,c:8},{r:3,c:0},{r:3,c:1},{r:3,c:2},{r:3,c:9},{r:3,c:10},{r:4,c:2},{r:4,c:4},{r:4,c:6},{r:4,c:7},{r:4,c:11},{r:4,c:12},{r:4,c:14},{r:5,c:0},{r:5,c:9},{r:5,c:14},{r:6,c:1},{r:6,c:2},{r:6,c:3},{r:6,c:6},{r:6,c:7},{r:6,c:8},{r:6,c:9},{r:6,c:10},{r:6,c:11},{r:6,c:12},{r:6,c:13}],
+    doors:[{r:1,c:14,letter:'B'},{r:2,c:7,letter:'B'},{r:3,c:6,letter:'B'},{r:4,c:1,letter:'B'},{r:4,c:5,letter:'B'},{r:5,c:4,letter:'B'},{r:5,c:5,letter:'A'},{r:5,c:7,letter:'B'}],
+    keys:[{r:1,c:1,letter:'a'},{r:5,c:6,letter:'b'}],
+  },
 ];
