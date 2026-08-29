@@ -25,9 +25,9 @@ export default function Panel({ game, hardMode }) {
 
       <div className="card">
         <div className="legend-title">操作</div>
-        <div className="hint"><kbd>WASD</kbd> / <kbd>方向键</kbd> 移动（一次一格）</div>
+        <div className="hint"><kbd>WASD</kbd> / <kbd>方向键</kbd> 移动</div>
         <div className="hint"><kbd>R</kbd> 重新开始</div>
-        <div className="hint"><kbd>M</kbd> 切换简单 / 困难</div>
+        <div className="hint"><kbd>M</kbd> 切换简单 / 困难模式</div>
         <div className="hint"><kbd>1</kbd>–<kbd>9</kbd> 切换关卡</div>
         <div className="hint mode-note">困难模式：不显示移动，撞墙/撞身体即失败。</div>
       </div>
