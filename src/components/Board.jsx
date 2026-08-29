@@ -21,10 +21,11 @@ function useAnimateSnake(snake, snapKey, cell, bw, bh) {
   const stride = cell + GAP;
   const center = (c) => ({ x: c.c * stride + cell / 2, y: c.r * stride + cell / 2 });
   const toPts = (cells) => cells.map(center);
+  const fallbackDir = { dr: 1, dc: 0 };
+  const restState = (cells) => ({ pts: toPts(cells), dir: dirOf(cells) || fallbackDir });
 
-  const [display, setDisplay] = useState(() => toPts(snake));
+  const [display, setDisplay] = useState(() => restState(snake));
   const prevCellsRef = useRef(snake);
-  const displayRef = useRef(display);
   const rafRef = useRef();
   const lastSnap = useRef(undefined);
   const lastCell = useRef(cell);
@@ -35,8 +36,7 @@ function useAnimateSnake(snake, snapKey, cell, bw, bh) {
       lastSnap.current = snapKey;
       lastCell.current = cell;
       prevCellsRef.current = snake;
-      displayRef.current = to;
-      setDisplay(to);
+      setDisplay(restState(snake));
       return;
     }
     if (prevCellsRef.current === snake) return;
@@ -47,6 +47,8 @@ function useAnimateSnake(snake, snapKey, cell, bw, bh) {
     const oldHead = fromPts[0], oldTail = fromPts[fromPts.length - 1];
     const newHead = to[0], newTail = to[to.length - 1];
     const body = to.slice(1);
+    const oldDir = dirOf(fromCells) || fallbackDir;
+    const newDir = dirOf(snake) || oldDir;
 
     const start = performance.now();
     cancelAnimationFrame(rafRef.current);
@@ -57,10 +59,11 @@ function useAnimateSnake(snake, snapKey, cell, bw, bh) {
       const head = wrapLerp(oldHead, newHead, e, bw, bh);
       const tail = wrapLerp(oldTail, newTail, e, bw, bh);
       const pts = [head, ...body, tail];
-      displayRef.current = pts;
-      setDisplay(pts);
+      // 蛇头从一个方向平滑旋转到另一个方向，避免转向开始时在旧蛇头位置闪现“转向后的蛇头”
+      const dir = lerpDir(oldDir, newDir, e);
+      setDisplay({ pts, dir });
       if (p < 1) rafRef.current = requestAnimationFrame(step);
-      else { displayRef.current = to; setDisplay(to); }
+      else setDisplay(restState(snake));
     };
     rafRef.current = requestAnimationFrame(step);
     return () => cancelAnimationFrame(rafRef.current);
@@ -69,18 +72,26 @@ function useAnimateSnake(snake, snapKey, cell, bw, bh) {
   return display;
 }
 
-function headDir(state) {
-  const h = state.snake[0], n = state.snake[1];
+// 只根据蛇身点求蛇头朝向；返回 null 表示无法确定（蛇头没有相邻身体格）
+function dirOf(snake) {
+  const h = snake[0], n = snake[1];
   if (n) {
     const dr = Math.sign(h.r - n.r), dc = Math.sign(h.c - n.c);
     if (dr || dc) return { dr, dc };
   }
-  if (state.lastDir) {
-    const dx = state.lastDir === 'right' ? 1 : state.lastDir === 'left' ? -1 : 0;
-    const dy = state.lastDir === 'down' ? 1 : state.lastDir === 'up' ? -1 : 0;
-    return { dr: dy, dc: dx };
-  }
-  return { dr: 1, dc: 0 };
+  return null;
+}
+
+// 在动画里平滑地从旧朝向 a 旋转到新朝向 b（仍是单位向量）
+function lerpDir(a, b, e) {
+  if (!a) return b; if (!b) return a;
+  if (e <= 0) return a; if (e >= 1) return b;
+  const a1 = Math.atan2(a.dr, a.dc), a2 = Math.atan2(b.dr, b.dc);
+  let da = a2 - a1;
+  while (da > Math.PI) da -= 2 * Math.PI;
+  while (da < -Math.PI) da += 2 * Math.PI;
+  const ang = a1 + da * e;
+  return { dr: Math.sin(ang), dc: Math.cos(ang) };
 }
 
 function eyes(p, dir, w) {
@@ -150,10 +161,9 @@ export default function Board({ state, snapKey = 0 }) {
     return arr;
   }, [state]);
 
-  const ptsAnim = useAnimateSnake(state.snake, snapKey, cell, bw, bh);
+  const { pts: ptsAnim, dir } = useAnimateSnake(state.snake, snapKey, cell, bw, bh);
   const d = polyToD(buildPolyline(ptsAnim, bw, bh));
   const head = ptsAnim[0] || { x: stride * state.snake[0].c + cell / 2, y: stride * state.snake[0].r + cell / 2 };
-  const dir = headDir(state);
   const eyeList = eyes(head, dir, snakeW);
 
   // 环绕镜像：把整条蛇（折线 + 蛇头）在四周的等价位置各画一份，配合 viewBox 裁剪，
