@@ -44,4 +44,8 @@ export const LEVELS = [
     doors:[{r:1,c:6,letter:'A'},{r:2,c:3,letter:'A'},{r:2,c:9,letter:'A'},{r:2,c:12,letter:'A'},{r:4,c:7,letter:'A'},{r:5,c:11,letter:'A'},{r:6,c:5,letter:'A'},{r:7,c:3,letter:'A'}],
     keys:[{r:7,c:4,letter:'a'}],
   },
+  { w:4, h:4,
+    snake:[{r:1,c:0},{r:2,c:0},{r:2,c:1},{r:2,c:2},{r:2,c:3}],
+    goal:{r:3,c:3},
+  },
 ];

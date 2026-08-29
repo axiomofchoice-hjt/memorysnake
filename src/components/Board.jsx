@@ -1,17 +1,23 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { tileAt, isDoorChar, isKeyChar } from '../game.js';
 
-const GAP = 2; // 格子间距
-// 让棋盘在固定空间内自适应：大图格子变小
-const TARGET_W = 560;
+const GAP = 2;            // 格子间距
+const TARGET_W = 560;     // 让整张图放进该空间
 const TARGET_H = 520;
 
 const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
 
+function wrapLerp(a, b, e, bw, bh) {
+  let dx = b.x - a.x, dy = b.y - a.y;
+  if (dx > bw / 2) dx -= bw; else if (dx < -bw / 2) dx += bw;
+  if (dy > bh / 2) dy -= bh; else if (dy < -bh / 2) dy += bh;
+  return { x: a.x + dx * e, y: a.y + dy * e };
+}
+
 /*
- * 爬行动画：蛇头伸出、蛇尾收回，身体保持正交；转弯不斜切。
+ * 爬行动画：蛇头伸出、蛇尾收回；穿越边界时沿“最短环绕路径”滑动，头/尾会贴着边缘滑出再滑入。
  */
-function useAnimateSnake(snake, snapKey, cell) {
+function useAnimateSnake(snake, snapKey, cell, bw, bh) {
   const stride = cell + GAP;
   const center = (c) => ({ x: c.c * stride + cell / 2, y: c.r * stride + cell / 2 });
   const toPts = (cells) => cells.map(center);
@@ -25,7 +31,6 @@ function useAnimateSnake(snake, snapKey, cell) {
 
   useEffect(() => {
     const to = toPts(snake);
-    // 重置 / 揭示 / 格子大小变化：直接落位
     if (snapKey !== lastSnap.current || cell !== lastCell.current) {
       lastSnap.current = snapKey;
       lastCell.current = cell;
@@ -34,26 +39,22 @@ function useAnimateSnake(snake, snapKey, cell) {
       setDisplay(to);
       return;
     }
-
     if (prevCellsRef.current === snake) return;
 
     const fromCells = prevCellsRef.current;
     prevCellsRef.current = snake;
     const fromPts = fromCells.map(center);
-    const oldHead = fromPts[0];
-    const oldTail = fromPts[fromPts.length - 1];
-    const newHead = to[0];
-    const newTail = to[to.length - 1];
+    const oldHead = fromPts[0], oldTail = fromPts[fromPts.length - 1];
+    const newHead = to[0], newTail = to[to.length - 1];
     const body = to.slice(1);
 
     const start = performance.now();
     cancelAnimationFrame(rafRef.current);
-
     const step = (t) => {
       const p = Math.min(1, (t - start) / 150);
       const e = easeOutCubic(p);
-      const head = { x: oldHead.x + (newHead.x - oldHead.x) * e, y: oldHead.y + (newHead.y - oldHead.y) * e };
-      const tail = { x: oldTail.x + (newTail.x - oldTail.x) * e, y: oldTail.y + (newTail.y - oldTail.y) * e };
+      const head = wrapLerp(oldHead, newHead, e, bw, bh);
+      const tail = wrapLerp(oldTail, newTail, e, bw, bh);
       const pts = [head, ...body, tail];
       displayRef.current = pts;
       setDisplay(pts);
@@ -61,14 +62,12 @@ function useAnimateSnake(snake, snapKey, cell) {
       else { displayRef.current = to; setDisplay(to); }
     };
     rafRef.current = requestAnimationFrame(step);
-
     return () => cancelAnimationFrame(rafRef.current);
-  }, [snake, snapKey, cell]);
+  }, [snake, snapKey, cell, bw, bh]);
 
   return display;
 }
 
-// 蛇头朝向：优先最后移动方向，否则由“头→脖子”推得
 function headDir(state) {
   const h = state.snake[0], n = state.snake[1];
   if (n) {
@@ -83,7 +82,6 @@ function headDir(state) {
   return { dr: 1, dc: 0 };
 }
 
-// 两只眼睛
 function eyes(p, dir, w) {
   const dx = dir.dc, dy = dir.dr;
   const px = -dy, py = dx;
@@ -99,8 +97,38 @@ function eyes(p, dir, w) {
   return list;
 }
 
+// 把点移近 ref（环绕时取最近的等价位置），换“无横跨线”的局部连接
+function toward(ref, p, bw, bh) {
+  let x = p.x, y = p.y;
+  if (ref.x - x > bw / 2) x += bw; else if (x - ref.x > bw / 2) x -= bw;
+  if (ref.y - y > bh / 2) y += bh; else if (y - ref.y > bh / 2) y -= bh;
+  return { x, y };
+}
+
+// 生成若干条相互连通的折线（穿越边界处断开并在两侧补一段局部连接）
+function buildStrokes(pts, bw, bh, stride) {
+  const strokes = [];
+  let cur = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    const prev = pts[i - 1], p = pts[i];
+    const d = Math.hypot(p.x - prev.x, p.y - prev.y);
+    if (d <= stride + 2) {
+      cur.push(p);
+    } else {
+      // 环绕：在 prev 侧接“p 的最近镜像”，在 p 侧接“prev 的最近镜像”
+      strokes.push(cur);
+      strokes.push([prev, toward(prev, p, bw, bh)]);
+      strokes.push([toward(p, prev, bw, bh), p]);
+      cur = [p];
+    }
+  }
+  strokes.push(cur);
+  return strokes;
+}
+
+const strokeToD = (s) => s.map((p, i) => (i ? 'L' : 'M') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ');
+
 export default function Board({ state, snapKey = 0 }) {
-  // 自适应格子大小：让整张图放进目标空间
   let cell = Math.floor(Math.min(
     (TARGET_W - (state.W - 1) * GAP) / state.W,
     (TARGET_H - (state.H - 1) * GAP) / state.H
@@ -126,11 +154,15 @@ export default function Board({ state, snapKey = 0 }) {
     return arr;
   }, [state]);
 
-  const ptsAnim = useAnimateSnake(state.snake, snapKey, cell);
-  const d = ptsAnim.map((p, i) => (i ? 'L' : 'M') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ');
+  const ptsAnim = useAnimateSnake(state.snake, snapKey, cell, bw, bh);
+  const strokes = buildStrokes(ptsAnim, bw, bh, stride);
+  const d = strokes.map(strokeToD).join(' ');
   const head = ptsAnim[0] || { x: stride * state.snake[0].c + cell / 2, y: stride * state.snake[0].r + cell / 2 };
   const dir = headDir(state);
   const eyeList = eyes(head, dir, snakeW);
+
+  // 蛇头穿越边界时，在另一侧画它的镜点头，形成“滑出+滑入”的连贯感
+  const headOffsets = [[0, 0], [bw, 0], [-bw, 0], [0, bh], [0, -bh]];
 
   return (
     <div className="board" style={{ '--cell': cell + 'px', width: bw, height: bh }}>
@@ -148,11 +180,15 @@ export default function Board({ state, snapKey = 0 }) {
       <svg className="snake-layer" viewBox={`0 0 ${bw} ${bh}`} width={bw} height={bh}>
         <path d={d} fill="none" stroke="#2f7d35" strokeWidth={snakeW + 5} strokeLinecap="round" strokeLinejoin="round" opacity={0.3} />
         <path d={d} fill="none" stroke="#69bf6d" strokeWidth={snakeW} strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx={head.x} cy={head.y} r={snakeW / 2} fill="#4caf50" />
-        {eyeList.map((e, i) => (
-          <g key={i}>
-            <circle cx={e.ex} cy={e.ey} r={e.er} fill="#f6fbf6" />
-            <circle cx={e.px} cy={e.py} r={e.pr} fill="#1f2b1f" />
+        {headOffsets.map(([ox, oy], i) => (
+          <g key={i} transform={`translate(${ox} ${oy})`}>
+            <circle cx={head.x} cy={head.y} r={snakeW / 2} fill="#4caf50" />
+            {eyeList.map((e, j) => (
+              <g key={j}>
+                <circle cx={e.ex} cy={e.ey} r={e.er} fill="#f6fbf6" />
+                <circle cx={e.px} cy={e.py} r={e.pr} fill="#1f2b1f" />
+              </g>
+            ))}
           </g>
         ))}
       </svg>
