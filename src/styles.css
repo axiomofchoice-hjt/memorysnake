@@ -162,12 +162,19 @@ kbd {
   position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
   background: rgba(28, 34, 48, .55); backdrop-filter: blur(2px);
   z-index: 20;
+  animation: fadeIn .22s ease;
 }
 .overlay.hidden { display: none; }
 .ov-card {
   background: var(--card); border: 1px solid var(--line);
   border-radius: 18px; padding: 30px 40px; text-align: center;
   box-shadow: 0 24px 60px rgba(60, 72, 100, .28); min-width: 260px;
+  animation: popIn .32s cubic-bezier(.2, .9, .3, 1.35);
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes popIn {
+  from { opacity: 0; transform: scale(.86) translateY(6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 .ov-title { font-size: 26px; font-weight: 800; margin-bottom: 8px; }
 .ov-card.win .ov-title { color: #2f9e44; }

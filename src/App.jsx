@@ -21,6 +21,7 @@ export default function App() {
   const [hardMode, setHardMode] = useState(false);
   const [level, setLevel] = useState(0);
   const [game, setGame] = useState(() => fresh(0));
+  const [snapKey, setSnapKey] = useState(0); // 重置/揭示时递增，让动画直接落到目标
   const baseRef = useRef(null); // 初始快照（困难模式盲走时显示）
   if (baseRef.current === null) baseRef.current = game;
 
@@ -29,6 +30,7 @@ export default function App() {
     baseRef.current = st;
     setGame(st);
     setLevel(lvl);
+    setSnapKey((k) => k + 1);
   }, [level]);
 
   const move = useCallback((dir) => {
@@ -42,6 +44,15 @@ export default function App() {
     setHardMode(hard);
     reset();
   }, [reset]);
+
+  // 困难模式在结束时揭示：动画直接落到最终状态；简单模式保持最后一步的移动动画
+  const prevStatusRef = useRef(game.status);
+  useEffect(() => {
+    if (prevStatusRef.current === 'playing' && game.status !== 'playing' && hardMode) {
+      setSnapKey((k) => k + 1);
+    }
+    prevStatusRef.current = game.status;
+  }, [game.status, hardMode]);
 
   // 键盘控制
   useEffect(() => {
@@ -77,7 +88,7 @@ export default function App() {
 
       <div className="layout">
         <div className="stage">
-          <Board state={shown} />
+          <Board state={shown} snapKey={snapKey} />
         </div>
         <Panel
           game={game}
