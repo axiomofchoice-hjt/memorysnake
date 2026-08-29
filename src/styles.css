@@ -62,9 +62,8 @@ body {
 }
 .btn:hover { background: #f4f6fb; }
 .btn:active { transform: translateY(1px); }
-/* 鼠标点击聚焦时不显示默认黑框；仅键盘导航(Tab…)保留清晰的 accent 焦点环 */
-.btn:focus { outline: none; }
-.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* 点击/聚焦都不显示外描边框（黑框/蓝框都不要） */
+.btn:focus, .btn:focus-visible { outline: none; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn.primary:hover { background: #3f60f0; }
 
