@@ -3,7 +3,6 @@ import { createState, applyMove, DIR_KEY } from './game.js';
 import { LEVELS } from './levels.js';
 import Board from './components/Board.jsx';
 import Panel from './components/Panel.jsx';
-import Overlay from './components/Overlay.jsx';
 
 const fresh = (index) => createState(LEVELS[index]);
 
@@ -107,8 +106,6 @@ export default function App() {
           onMode={() => setMode(!hardMode)}
         />
       </div>
-
-      {!playing && <Overlay game={game} onReset={() => reset()} />}
     </main>
   );
 }
