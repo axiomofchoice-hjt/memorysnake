@@ -27,6 +27,13 @@ export const DIR_KEY = {
 
 export const keyOf = (r, c) => r + ',' + c;
 
+// 用制表符表示蛇身（视觉更直观），等价于 '1'
+export const BOX_CHARS = new Set(['━', '┃', '┏', '┓', '┗', '┛']);
+
+// 门：大写字母（除终点 'D' 外）；钥匙：小写字母。'a' 打开 'A'。
+export const isDoorChar = (ch) => /^[A-Z]$/.test(ch) && ch !== 'D';
+export const isKeyChar = (ch) => /^[a-z]$/.test(ch);
+
 export function parseLevel(lines) {
   lines = (lines || []).map((s) => String(s).replace(/\r/g, '').trimEnd()).filter((s) => s.length > 0);
   if (!lines.length) throw new Error('empty level');
@@ -37,35 +44,107 @@ export function parseLevel(lines) {
 
   let head = null;
   const bodyCells = [];
-  const goals = [];
-  const keys = [];
+  const walls = [];   // '#'
+  const goals = [];   // 'D' 终点（到达即胜）
+  const doors = [];   // 大写字母门（吃钥匙前是墙，开后变地板）
+  const keys = [];    // 小写字母钥匙（'a' 打开 'A'）
 
   for (let r = 0; r < H; r++) {
     if (grid[r].length !== W) throw new Error('ragged level row');
     for (let c = 0; c < W; c++) {
       const ch = grid[r][c];
       if (ch === '2') head = { r, c };
-      else if (ch === '1') bodyCells.push({ r, c });
+      else if (ch === '1' || BOX_CHARS.has(ch)) bodyCells.push({ r, c });
+      else if (ch === '#') walls.push({ r, c });
       else if (ch === 'D') goals.push({ r, c });
-      else if (ch === 'K') keys.push({ r, c });
+      else if (isDoorChar(ch)) doors.push({ r, c, letter: ch });
+      else if (isKeyChar(ch)) keys.push({ r, c, letter: ch });
     }
   }
   if (!head) throw new Error('level has no head (2)');
 
   const snake = buildSnakePath(grid, head, bodyCells, H, W);
-  return { grid, H, W, snake, goals, keys };
+
+  // 返回“关卡对象”（结构化，不是字符串）
+  return {
+    w: W,
+    h: H,
+    snake,
+    walls,
+    goal: goals.length ? goals[0] : null,
+    doors,
+    keys,
+  };
+}
+
+// 从关卡对象构建可玩的游戏状态
+export function createState(level) {
+  const H = level.h, W = level.w;
+  const walls = level.walls || [];
+  const doors = level.doors || [];
+  const keys = level.keys || [];
+  const grid = Array.from({ length: H }, () => Array(W).fill('0'));
+  for (const wl of walls) grid[wl.r][wl.c] = '#';
+  if (level.goal) grid[level.goal.r][level.goal.c] = 'D';
+  for (const d of doors) grid[d.r][d.c] = d.letter;          // 门（大写字母）
+  for (const k of keys) grid[k.r][k.c] = k.letter;            // 钥匙（小写字母）
+
+  // 钥匙按字母开门：钥匙 'a' 打开所有 'A' 门
+  const keyLetter = {};                                    // keyPos -> letter(小写)
+  for (const k of keys) keyLetter[keyOf(k.r, k.c)] = k.letter;
+  const doorsByLetter = {};                                // letter(大写) -> [doorPos...]
+  for (const d of doors) {
+    const L = d.letter;
+    (doorsByLetter[L] = doorsByLetter[L] || []).push(keyOf(d.r, d.c));
+  }
+
+  return {
+    grid,
+    H,
+    W,
+    snake: level.snake.map((s) => ({ r: s.r, c: s.c })),
+    goals: level.goal ? [{ r: level.goal.r, c: level.goal.c }] : [],
+    doors,
+    keys,
+    keyLetter,
+    doorsByLetter,
+    doorOpen: new Set(), // 当前已开（变地板）的门，初始全关
+    status: 'playing',   // 'playing' | 'won' | 'lost'
+    reason: null,        // 'wall' | 'self' | null
+    moves: 0,
+    lastDir: null,
+    won: false,
+  };
+}
+
+// 制表符的连接方向：只有画线的那两边才算相连
+function conn(ch) {
+  switch (ch) {
+    case '━': return [[0, -1], [0, 1]];            // left, right
+    case '┃': return [[-1, 0], [1, 0]];            // up, down
+    case '┏': return [[1, 0], [0, 1]];             // down, right
+    case '┓': return [[1, 0], [0, -1]];            // down, left
+    case '┗': return [[-1, 0], [0, 1]];            // up, right
+    case '┛': return [[-1, 0], [0, -1]];           // up, left
+    default: return [[-1, 0], [1, 0], [0, -1], [0, 1]]; // '1'/'2'
+  }
 }
 
 // 从蛇头出发重建蛇的完整身体路径（蛇头在首位，蛇尾在末位）
 function buildSnakePath(grid, head, bodyCells, H, W) {
   const bodySet = new Set(bodyCells.map((c) => keyOf(c.r, c.c)));
-  const isSnake = (r, c) => bodySet.has(keyOf(r, c));
+  const isSnake = (r, c) => bodySet.has(keyOf(r, c)) || (r === head.r && c === head.c);
+  const points = (ch, dr, dc) => conn(ch).some(([a, b]) => a === dr && b === dc);
 
+  // 相邻两格相连：本格有指向邻格的线，且邻格也有指回来的线
   const neighbors = (r, c) => {
+    const ch = grid[r][c];
     const out = [];
-    for (const d of Object.values(DIRS)) {
-      const nr = r + d.dr, nc = c + d.dc;
-      if (nr >= 0 && nr < H && nc >= 0 && nc < W && isSnake(nr, nc)) out.push({ r: nr, c: nc });
+    for (const [dr, dc] of conn(ch)) {
+      const nr = r + dr, nc = c + dc;
+      if (nr >= 0 && nr < H && nc >= 0 && nc < W && isSnake(nr, nc)) {
+        if (points(grid[nr][nc], -dr, -dc)) out.push({ r: nr, c: nc });
+      }
     }
     return out;
   };
@@ -93,30 +172,12 @@ function buildSnakePath(grid, head, bodyCells, H, W) {
   return best && best.length ? best : [head];
 }
 
-export function createState(level) {
-  return {
-    grid: level.grid.map((row) => row.slice()),
-    H: level.H,
-    W: level.W,
-    snake: level.snake.map((s) => ({ r: s.r, c: s.c })),
-    goals: level.goals.slice(),
-    keys: level.keys.slice(),
-    heldKeys: [],
-    status: 'playing', // 'playing' | 'won' | 'lost'
-    reason: null,      // 'wall' | 'self' | null
-    moves: 0,
-    lastDir: null,
-    won: false,
-  };
-}
-
 const pureSnapshot = (state) => ({
   status: state.status,
   reason: state.reason,
   moves: state.moves,
   lastDir: state.lastDir,
   won: state.won,
-  heldKeys: state.heldKeys.slice(),
 });
 
 // 应用一次移动：纯函数，返回新状态，不修改入参
@@ -146,30 +207,42 @@ export function applyMove(prev, dir) {
   const newHead = { r: nr, c: nc };
   const newSnake = [newHead].concat(prev.snake.slice(0, len - 1));
   const grid = prev.grid.map((row) => row.slice());
+  const base = { snake: newSnake, grid, moves: prev.moves + 1, lastDir: dir };
 
-  let heldKeys = prev.heldKeys;
-  let won = false;
-  if (target === 'K') {
-    heldKeys = prev.heldKeys.concat([{ r: nr, c: nc }]);
-    grid[nr][nc] = '0';
+  // 终点 'D'：到达即胜（门始终是终点，不是障碍）
+  if (target === 'D') {
+    return Object.assign({}, prev, base, { status: 'won', won: true });
   }
-  if (target === 'D') won = true;
 
-  return Object.assign({}, prev, {
-    snake: newSnake,
-    grid,
-    heldKeys,
-    status: won ? 'won' : 'playing',
-    moves: prev.moves + 1,
-    lastDir: dir,
-    won,
-  });
+  // 门（大写字母，'D' 是终点不算门）：吃到对应钥匙前是墙（撞上=失败）；开门后变地板
+  if (isDoorChar(target)) {
+    if (!prev.doorOpen.has(hitKey)) {
+      return Object.assign({}, prev, pureSnapshot(prev), { status: 'lost', reason: 'wall', moves: prev.moves + 1, lastDir: dir });
+    }
+    return Object.assign({}, prev, base, { status: 'playing', won: false });
+  }
+
+  // 钥匙（小写字母）：吃到后打开所有同字母的门（'a' 开所有 'A'）；钥匙被消耗，不作为持有状态
+  if (isKeyChar(target)) {
+    const letter = prev.keyLetter[hitKey];
+    const doorOpen = new Set(prev.doorOpen);
+    if (letter && prev.doorsByLetter) {
+      const list = prev.doorsByLetter[letter.toUpperCase()];
+      if (list) for (const p of list) doorOpen.add(p);
+    }
+    grid[nr][nc] = '0'; // 钥匙被吃掉
+    return Object.assign({}, prev, base, { doorOpen });
+  }
+
+  // 地板
+  return Object.assign({}, prev, base, { status: 'playing', won: false });
 }
 
-// 某格的地砖类型（静态网格里的 '1'/'2' 视为地板，因为蛇身是动态的）
+// 某格的地砖类型（静态网格里的 '1'/'2'/制表符 视为地板；已开的门视为地板即“门消失”）
 export function tileAt(state, r, c) {
   const ch = state.grid[r][c];
-  if (ch === '1' || ch === '2') return '0';
+  if (ch === '1' || ch === '2' || BOX_CHARS.has(ch)) return '0';
+  if (isDoorChar(ch) && state.doorOpen && state.doorOpen.has(keyOf(r, c))) return '0';
   return ch;
 }
 

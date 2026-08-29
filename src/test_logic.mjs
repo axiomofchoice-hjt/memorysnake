@@ -1,14 +1,6 @@
 // Node 逻辑验证（ESM）。运行: node src/test_logic.mjs
 import { parseLevel, createState, applyMove, tileAt, snakeIndexAt } from './game.js';
 
-const LEVEL = [
-  '##########',
-  '#1111##0D#',
-  '#1001##00#',
-  '#20011110#',
-  '##########',
-];
-
 function render(s) {
   let out = '';
   for (let r = 0; r < s.H; r++) {
@@ -27,30 +19,37 @@ function render(s) {
   return out;
 }
 
-const g = parseLevel(LEVEL);
-console.log('蛇路径:', g.snake.map((p) => `(${p.r},${p.c})`).join(' -> '), '| 蛇长', g.snake.length);
+const ASC = ['##########', '#1111##0D#', '#1001##00#', '#20011110#', '##########'];
+const g = parseLevel(ASC);
+console.log('关卡对象 keys:', Object.keys(g).join(','));
+console.log('蛇长:', g.snake.length, '蛇头:', JSON.stringify(g.snake[0]));
 console.log('\n初始:\n' + render(createState(g)));
 
 let s = createState(g);
 s = applyMove(s, 'right');
-console.log('右移一步:', render(s), '状态', s.status);
+console.log('右移一步:\n' + render(s), '状态', s.status);
 
-console.log('撞墙(下):', applyMove(createState(g), 'down').status);
-console.log('撞自己(上):', applyMove(createState(g), 'up').status);
+// 终点 D：到达即胜（无需钥匙）
+let a = createState(parseLevel(['####', '#2D#', '####']));
+a = applyMove(a, 'right');
+console.log('到达D:', a.status, a.won);
 
-// 环形边界
-let w = createState(parseLevel(['2.....', '......']));
-w = applyMove(w, 'left');
-console.log('环形(左):', JSON.stringify(w.snake[0]));
-w = applyMove(w, 'right');
-console.log('环形(右):', JSON.stringify(w.snake[0]));
+// 门 A：未开是墙（撞上=失败）
+let b = createState(parseLevel(['####', '#2A#', '####']));
+b = applyMove(b, 'right');
+console.log('撞未开的门A:', b.status, b.reason);
 
-// 到达终点
-let win = createState(parseLevel(['###', '#2D', '###']));
-win = applyMove(win, 'right');
-console.log('到D:', win.status, win.won);
+// 钥匙 a 打开门 A，门变地板，穿过，到 D 胜
+let c = createState(parseLevel(['######', '#2aAD#', '######']));
+console.log('门A初始关闭:', c.doorOpen.has('1,3'));
+c = applyMove(c, 'right'); // 吃 a，开 A
+console.log('吃a后 门(1,3)开:', c.doorOpen.has('1,3'), '| tileAt门:', tileAt(c, 1, 3));
+c = applyMove(c, 'right'); // 穿过已开的门
+console.log('穿门后状态:', c.status);
+c = applyMove(c, 'right'); // 到 D
+console.log('到达D:', c.status, c.won);
 
-// 钥匙
-let k = createState(parseLevel(['#####', '#2K.D', '#####']));
-k = applyMove(k, 'right');
-console.log('拾K后钥匙数:', k.heldKeys.length, '原地砖:', k.grid[k.snake[0].r][k.snake[0].c]);
+// 钥匙无对应门：无副作用
+let d = createState(parseLevel(['######', '#2a..#', '######']));
+d = applyMove(d, 'right');
+console.log('吃无门钥匙:', d.status, 'doorOpen size:', d.doorOpen.size);

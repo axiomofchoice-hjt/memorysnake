@@ -1,21 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { parseLevel, createState, applyMove, DIR_KEY } from './game.js';
+import { createState, applyMove, DIR_KEY } from './game.js';
+import { LEVELS } from './levels.js';
 import Board from './components/Board.jsx';
 import Panel from './components/Panel.jsx';
 import Overlay from './components/Overlay.jsx';
 
-// 关卡（可追加更多）。第一关来自需求。
-const LEVELS = [
-  [
-    '##########',
-    '#1111##0D#',
-    '#1001##00#',
-    '#20011110#',
-    '##########',
-  ],
-];
-
-const fresh = (level) => createState(parseLevel(LEVELS[level]));
+const fresh = (index) => createState(LEVELS[index]);
 
 export default function App() {
   const [hardMode, setHardMode] = useState(false);
@@ -45,6 +35,11 @@ export default function App() {
     reset();
   }, [reset]);
 
+  const goLevel = useCallback((n) => {
+    if (n < 0 || n >= LEVELS.length) return;
+    reset(n);
+  }, [reset]);
+
   // 困难模式在结束时揭示：动画直接落到最终状态；简单模式保持最后一步的移动动画
   const prevStatusRef = useRef(game.status);
   useEffect(() => {
@@ -62,10 +57,11 @@ export default function App() {
       const k = e.key.toLowerCase();
       if (k === 'r') reset();
       else if (k === 'm') setMode(!hardMode);
+      else if (/^[1-9]$/.test(k) && Number(k) <= LEVELS.length) goLevel(Number(k) - 1);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [move, reset, setMode, hardMode]);
+  }, [move, reset, setMode, hardMode, goLevel]);
 
   const playing = game && game.status === 'playing';
   // 困难模式：进行中只显示初始快照；到终点/失败才显示结果
@@ -79,6 +75,18 @@ export default function App() {
           <span className="sub">迷宫逃生</span>
         </div>
         <div className="toolbar">
+          <div className="levels">
+            {LEVELS.map((_, i) => (
+              <button
+                key={i}
+                className={`btn level ${i === level ? 'active' : ''}`}
+                onClick={() => goLevel(i)}
+                title={`第 ${i + 1} 关`}
+              >
+                {i + 1}
+              </button>
+            ))}
+          </div>
           <button className={`btn ${hardMode ? 'primary' : ''}`} onClick={() => setMode(!hardMode)}>
             模式：{hardMode ? '困难' : '简单'}
           </button>

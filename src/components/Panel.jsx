@@ -10,7 +10,6 @@ export default function Panel({ game, hardMode }) {
         <div className="legend-title">状态</div>
         <div className="status-line"><span className="label">状态</span><span className={`val ${game.status}`} id="statusText">{statusText}</span></div>
         <div className="status-line"><span className="label">步数</span><span className="val">{blind ? '—' : game.moves}</span></div>
-        <div className="status-line"><span className="label">钥匙</span><span className="val">{blind ? '—' : game.heldKeys.length}</span></div>
       </div>
 
       <div className="card">
@@ -19,7 +18,8 @@ export default function Panel({ game, hardMode }) {
         <div className="legend"><i className="sw body" />蛇身</div>
         <div className="legend"><i className="sw wall" />墙</div>
         <div className="legend"><i className="sw floor" />地板</div>
-        <div className="legend"><i className="sw door" />终点 · 门</div>
+        <div className="legend"><i className="sw dest" />终点 · D</div>
+        <div className="legend"><i className="sw door" />门 · X（吃钥匙后开）</div>
         <div className="legend"><i className="sw key" />钥匙</div>
       </div>
 
@@ -28,6 +28,8 @@ export default function Panel({ game, hardMode }) {
         <div className="hint"><kbd>WASD</kbd> / <kbd>方向键</kbd> 移动（一次一格）</div>
         <div className="hint"><kbd>R</kbd> 重置</div>
         <div className="hint"><kbd>M</kbd> 切换简单 / 困难</div>
+        <div className="hint"><kbd>1</kbd>–<kbd>2</kbd> 切换关卡</div>
+        <div className="hint">终点是 <kbd>D</kbd>；门 <kbd>X</kbd> 吃到对应钥匙前是墙（撞上=失败），吃到钥匙后开门变地板。钥匙与门外观相同、匹配隐藏。</div>
         <div className="hint mode-note">
           {hardMode
             ? '困难模式：游戏期间隐藏移动过程，只显示初始状态；到达终点或失败时才显示结果。'
