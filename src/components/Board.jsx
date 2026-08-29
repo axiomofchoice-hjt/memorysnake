@@ -53,6 +53,7 @@ function useAnimateSnake(snake, snapKey, cell, bw, bh) {
     const step = (t) => {
       const p = Math.min(1, (t - start) / 150);
       const e = easeOutCubic(p);
+      // 头/尾沿“最短环绕路径”滑动（贴着边滑出另一边界），实现缓缓滑出滑入
       const head = wrapLerp(oldHead, newHead, e, bw, bh);
       const tail = wrapLerp(oldTail, newTail, e, bw, bh);
       const pts = [head, ...body, tail];
@@ -105,28 +106,23 @@ function toward(ref, p, bw, bh) {
   return { x, y };
 }
 
-// 生成若干条相互连通的折线（穿越边界处断开并在两侧补一段局部连接）
-function buildStrokes(pts, bw, bh, stride) {
-  const strokes = [];
-  let cur = [pts[0]];
+/*
+ * 生成一条“环绕感知”的连续折线：相邻两点始终走最短环绕路径（用 toward 取最近等价点），
+ * 因此穿越边界时不会在棋盘中间画出横贯的长线，而是贴着边缘滑出、滑入。
+ * 由于这是一条连续折线（而非按缝切成多段的小折线），动画中头/尾滑动时不会出现
+ * “缝连接段”闪现/消失，也就消除了穿过边界那一行/列的浅绿色闪烁。
+ */
+function buildPolyline(pts, bw, bh) {
+  const poly = [pts[0]];
+  let acc = pts[0];
   for (let i = 1; i < pts.length; i++) {
-    const prev = pts[i - 1], p = pts[i];
-    const d = Math.hypot(p.x - prev.x, p.y - prev.y);
-    if (d <= stride + 2) {
-      cur.push(p);
-    } else {
-      // 环绕：在 prev 侧接“p 的最近镜像”，在 p 侧接“prev 的最近镜像”
-      strokes.push(cur);
-      strokes.push([prev, toward(prev, p, bw, bh)]);
-      strokes.push([toward(p, prev, bw, bh), p]);
-      cur = [p];
-    }
+    acc = toward(acc, pts[i], bw, bh);
+    poly.push(acc);
   }
-  strokes.push(cur);
-  return strokes;
+  return poly;
 }
 
-const strokeToD = (s) => s.map((p, i) => (i ? 'L' : 'M') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ');
+const polyToD = (s) => s.map((p, i) => (i ? 'L' : 'M') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ');
 
 export default function Board({ state, snapKey = 0 }) {
   let cell = Math.floor(Math.min(
@@ -155,14 +151,17 @@ export default function Board({ state, snapKey = 0 }) {
   }, [state]);
 
   const ptsAnim = useAnimateSnake(state.snake, snapKey, cell, bw, bh);
-  const strokes = buildStrokes(ptsAnim, bw, bh, stride);
-  const d = strokes.map(strokeToD).join(' ');
+  const d = polyToD(buildPolyline(ptsAnim, bw, bh));
   const head = ptsAnim[0] || { x: stride * state.snake[0].c + cell / 2, y: stride * state.snake[0].r + cell / 2 };
   const dir = headDir(state);
   const eyeList = eyes(head, dir, snakeW);
 
-  // 蛇头穿越边界时，在另一侧画它的镜点头，形成“滑出+滑入”的连贯感
-  const headOffsets = [[0, 0], [bw, 0], [-bw, 0], [0, bh], [0, -bh]];
+  // 环绕镜像：把整条蛇（折线 + 蛇头）在四周的等价位置各画一份，配合 viewBox 裁剪，
+  // 穿越边界时身体能贴着边缘连续滑出滑入，不会“直接出现在另一边”，也不闪烁。
+  const wrapOffsets = [
+    [0, 0], [bw, 0], [-bw, 0], [0, bh], [0, -bh],
+    [bw, bh], [-bw, -bh], [bw, -bh], [-bw, bh],
+  ];
 
   return (
     <div className="board" style={{ '--cell': cell + 'px', width: bw, height: bh }}>
@@ -178,10 +177,14 @@ export default function Board({ state, snapKey = 0 }) {
       </div>
 
       <svg className="snake-layer" viewBox={`0 0 ${bw} ${bh}`} width={bw} height={bh}>
-        <path d={d} fill="none" stroke="#2f7d35" strokeWidth={snakeW + 5} strokeLinecap="round" strokeLinejoin="round" opacity={0.3} />
-        <path d={d} fill="none" stroke="#69bf6d" strokeWidth={snakeW} strokeLinecap="round" strokeLinejoin="round" />
-        {headOffsets.map(([ox, oy], i) => (
-          <g key={i} transform={`translate(${ox} ${oy})`}>
+        {wrapOffsets.map(([ox, oy], i) => (
+          <path key={`s${i}`} d={d} fill="none" stroke="#2f7d35" strokeWidth={snakeW + 5} strokeLinecap="round" strokeLinejoin="round" opacity={0.3} transform={`translate(${ox} ${oy})`} />
+        ))}
+        {wrapOffsets.map(([ox, oy], i) => (
+          <path key={`m${i}`} d={d} fill="none" stroke="#69bf6d" strokeWidth={snakeW} strokeLinecap="round" strokeLinejoin="round" transform={`translate(${ox} ${oy})`} />
+        ))}
+        {wrapOffsets.map(([ox, oy], i) => (
+          <g key={`h${i}`} transform={`translate(${ox} ${oy})`}>
             <circle cx={head.x} cy={head.y} r={snakeW / 2} fill="#4caf50" />
             {eyeList.map((e, j) => (
               <g key={j}>
