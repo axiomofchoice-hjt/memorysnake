@@ -1,7 +1,8 @@
-// Node 逻辑验证（ESM）。运行: node src/test_logic.mjs
-import { parseLevel, createState, applyMove, tileAt, snakeIndexAt } from './game.js';
+// Node 逻辑验证（TS）。运行: npm run test
+import { parseLevel, createState, applyMove, tileAt, snakeIndexAt } from './game';
+import type { GameState } from './game';
 
-function render(s) {
+function render(s: GameState): string {
   let out = '';
   for (let r = 0; r < s.H; r++) {
     let line = '';

@@ -1,20 +1,21 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { createState, applyMove, DIR_KEY } from './game.js';
-import { LEVELS } from './levels.js';
-import Board from './components/Board.jsx';
-import Panel from './components/Panel.jsx';
+import { createState, applyMove, DIR_KEY } from './game';
+import type { Direction, GameState, Status } from './game';
+import { LEVELS } from './levels';
+import Board from './components/Board';
+import Panel from './components/Panel';
 
-const fresh = (index) => createState(LEVELS[index]);
+const fresh = (index: number): GameState => createState(LEVELS[index]);
 
 export default function App() {
   const [hardMode, setHardMode] = useState(false);
   const [level, setLevel] = useState(0);
-  const [game, setGame] = useState(() => fresh(0));
+  const [game, setGame] = useState<GameState>(() => fresh(0));
   const [snapKey, setSnapKey] = useState(0); // 重置/揭示时递增，让动画直接落到目标
-  const baseRef = useRef(null); // 初始快照（困难模式盲走时显示）
+  const baseRef = useRef<GameState | null>(null); // 初始快照（困难模式盲走时显示）
   if (baseRef.current === null) baseRef.current = game;
 
-  const reset = useCallback((lvl = level) => {
+  const reset = useCallback((lvl: number = level): void => {
     const st = fresh(lvl);
     baseRef.current = st;
     setGame(st);
@@ -22,7 +23,7 @@ export default function App() {
     setSnapKey((k) => k + 1);
   }, [level]);
 
-  const move = useCallback((dir) => {
+  const move = useCallback((dir: Direction): void => {
     setGame((prev) => {
       if (!prev || prev.status !== 'playing') return prev;
       const next = applyMove(prev, dir);
@@ -32,18 +33,18 @@ export default function App() {
     });
   }, [hardMode]);
 
-  const setMode = useCallback((hard) => {
+  const setMode = useCallback((hard: boolean): void => {
     setHardMode(hard);
     reset();
   }, [reset]);
 
-  const goLevel = useCallback((n) => {
+  const goLevel = useCallback((n: number): void => {
     if (n < 0 || n >= LEVELS.length) return;
     reset(n);
   }, [reset]);
 
   // 困难模式在结束时揭示：动画直接落到最终状态；简单模式保持最后一步的移动动画
-  const prevStatusRef = useRef(game.status);
+  const prevStatusRef = useRef<Status>(game.status);
   useEffect(() => {
     if (prevStatusRef.current === 'playing' && game.status !== 'playing' && hardMode) {
       setSnapKey((k) => k + 1);
@@ -53,7 +54,7 @@ export default function App() {
 
   // 键盘控制
   useEffect(() => {
-    const onKey = (e) => {
+    const onKey = (e: KeyboardEvent): void => {
       const dir = DIR_KEY[e.key];
       if (dir) { e.preventDefault(); move(dir); return; }
       const k = e.key.toLowerCase();
@@ -103,7 +104,6 @@ export default function App() {
         <Panel
           game={game}
           hardMode={hardMode}
-          onMode={() => setMode(!hardMode)}
         />
       </div>
     </main>

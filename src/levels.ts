@@ -1,6 +1,8 @@
+import type { Level } from './game';
+
 // 关卡对象（list of objects）。
 // 字段：w,h,snake(头在前),walls,goal,doors(letter大写),keys(letter小写)
-export const LEVELS = [
+export const LEVELS: Level[] = [
   { w:10, h:5,
     snake:[{r:3,c:1},{r:2,c:1},{r:1,c:1},{r:1,c:2},{r:1,c:3},{r:1,c:4},{r:2,c:4},{r:3,c:4},{r:3,c:5},{r:3,c:6},{r:3,c:7}],
     goal:{r:1,c:8},

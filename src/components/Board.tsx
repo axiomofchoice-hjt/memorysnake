@@ -1,13 +1,20 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { tileAt, isDoorChar, isKeyChar } from '../game.js';
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
+import { tileAt, isDoorChar, isKeyChar } from '../game';
+import type { Cell, Direction, GameState } from '../game';
 
 const GAP = 2;            // 格子间距
 const TARGET_W = 560;     // 让整张图放进该空间
 const TARGET_H = 520;
 
-const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+interface Pt { x: number; y: number; }
+interface Vec { dr: number; dc: number; }
+interface Eye { ex: number; ey: number; er: number; pr: number; px: number; py: number; }
+interface Display { pts: Pt[]; dir: Vec; }
 
-function wrapLerp(a, b, e, bw, bh) {
+const easeOutCubic = (t: number): number => 1 - Math.pow(1 - t, 3);
+
+function wrapLerp(a: Pt, b: Pt, e: number, bw: number, bh: number): Pt {
   // 先取 b 相对 a 的最近等价点，再在其间插值（实际环绕算术都在 toward 中）
   const w = toward(a, b, bw, bh);
   return { x: a.x + (w.x - a.x) * e, y: a.y + (w.y - a.y) * e };
@@ -16,18 +23,18 @@ function wrapLerp(a, b, e, bw, bh) {
 /*
  * 爬行动画：蛇头伸出、蛇尾收回；穿越边界时沿“最短环绕路径”滑动，头/尾会贴着边缘滑出再滑入。
  */
-function useAnimateSnake(snake, snapKey, cell, bw, bh, W, H) {
+function useAnimateSnake(snake: Cell[], snapKey: number, cell: number, bw: number, bh: number, W: number, H: number): Display {
   const stride = cell + GAP;
-  const center = (c) => ({ x: c.c * stride + cell / 2, y: c.r * stride + cell / 2 });
-  const toPts = (cells) => cells.map(center);
-  const fallbackDir = { dr: 1, dc: 0 };
-  const restState = (cells) => ({ pts: toPts(cells), dir: dirOf(cells, W, H) || fallbackDir });
+  const center = (c: Cell): Pt => ({ x: c.c * stride + cell / 2, y: c.r * stride + cell / 2 });
+  const toPts = (cells: Cell[]): Pt[] => cells.map(center);
+  const fallbackDir: Vec = { dr: 1, dc: 0 };
+  const restState = (cells: Cell[]): Display => ({ pts: toPts(cells), dir: dirOf(cells, W, H) || fallbackDir });
 
-  const [display, setDisplay] = useState(() => restState(snake));
-  const prevCellsRef = useRef(snake);
-  const rafRef = useRef();
-  const lastSnap = useRef(undefined);
-  const lastCell = useRef(cell);
+  const [display, setDisplay] = useState<Display>(() => restState(snake));
+  const prevCellsRef = useRef<Cell[]>(snake);
+  const rafRef = useRef<number>(0);
+  const lastSnap = useRef<number | undefined>(undefined);
+  const lastCell = useRef<number>(cell);
 
   useEffect(() => {
     const to = toPts(snake);
@@ -51,7 +58,7 @@ function useAnimateSnake(snake, snapKey, cell, bw, bh, W, H) {
 
     const start = performance.now();
     cancelAnimationFrame(rafRef.current);
-    const step = (t) => {
+    const step = (t: number): void => {
       const p = Math.min(1, (t - start) / 150);
       const e = easeOutCubic(p);
       // 头/尾沿“最短环绕路径”滑动（贴着边滑出另一边界），实现缓缓滑出滑入
@@ -73,7 +80,7 @@ function useAnimateSnake(snake, snapKey, cell, bw, bh, W, H) {
 
 // 只根据蛇身点求蛇头朝向；返回 null 表示无法确定（蛇头没有相邻身体格）。
 // 用边界尺寸 W/H 对行、列差做“最短环绕”处理，穿越边界后方向才不会反。
-function dirOf(snake, W, H) {
+function dirOf(snake: Cell[], W: number, H: number): Vec | null {
   const h = snake[0], n = snake[1];
   if (n) {
     let dc = h.c - n.c;
@@ -87,7 +94,7 @@ function dirOf(snake, W, H) {
 }
 
 // 在动画里平滑地从旧朝向 a 旋转到新朝向 b（仍是单位向量）
-function lerpDir(a, b, e) {
+function lerpDir(a: Vec, b: Vec, e: number): Vec {
   if (!a) return b; if (!b) return a;
   if (e <= 0) return a; if (e >= 1) return b;
   const a1 = Math.atan2(a.dr, a.dc), a2 = Math.atan2(b.dr, b.dc);
@@ -98,13 +105,13 @@ function lerpDir(a, b, e) {
   return { dr: Math.sin(ang), dc: Math.cos(ang) };
 }
 
-function eyes(p, dir, w) {
+function eyes(p: Pt, dir: Vec, w: number): Eye[] {
   const dx = dir.dc, dy = dir.dr;
   const px = -dy, py = dx;
   const front = w * 0.26, spread = w * 0.40;
   const er = Math.max(3, w * 0.19), pr = er * 0.55;
-  const r2 = (n) => Math.round(n * 10) / 10;
-  const list = [];
+  const r2 = (n: number): number => Math.round(n * 10) / 10;
+  const list: Eye[] = [];
   for (const sgn of [1, -1]) {
     const ex = p.x + dx * front + px * spread * sgn;
     const ey = p.y + dy * front + py * spread * sgn;
@@ -114,7 +121,7 @@ function eyes(p, dir, w) {
 }
 
 // 把点移近 ref（环绕时取最近的等价位置），换“无横跨线”的局部连接
-function toward(ref, p, bw, bh) {
+function toward(ref: Pt, p: Pt, bw: number, bh: number): Pt {
   let x = p.x, y = p.y;
   if (ref.x - x > bw / 2) x += bw; else if (x - ref.x > bw / 2) x -= bw;
   if (ref.y - y > bh / 2) y += bh; else if (y - ref.y > bh / 2) y -= bh;
@@ -127,7 +134,7 @@ function toward(ref, p, bw, bh) {
  * 由于这是一条连续折线（而非按缝切成多段的小折线），动画中头/尾滑动时不会出现
  * “缝连接段”闪现/消失，也就消除了穿过边界那一行/列的浅绿色闪烁。
  */
-function buildPolyline(pts, bw, bh) {
+function buildPolyline(pts: Pt[], bw: number, bh: number): Pt[] {
   const poly = [pts[0]];
   let acc = pts[0];
   for (let i = 1; i < pts.length; i++) {
@@ -137,10 +144,10 @@ function buildPolyline(pts, bw, bh) {
   return poly;
 }
 
-const polyToD = (s) => s.map((p, i) => (i ? 'L' : 'M') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ');
+const polyToD = (s: Pt[]): string => s.map((p, i) => (i ? 'L' : 'M') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ');
 
 // 两点（格子坐标）间的方向；两者恰好相邻时返回方向，否则 null
-function dirFrom(fr, fc, tr, tc, W, H) {
+function dirFrom(fr: number, fc: number, tr: number, tc: number, W: number, H: number): Direction | null {
   let dc = tc - fc; if (W) { if (dc > W / 2) dc -= W; else if (dc < -W / 2) dc += W; }
   let dr = tr - fr; if (H) { if (dr > H / 2) dr -= H; else if (dr < -H / 2) dr += H; }
   if (dr === 1 && dc === 0) return 'down';
@@ -151,14 +158,21 @@ function dirFrom(fr, fc, tr, tc, W, H) {
 }
 
 // 拖动时按“优势轴”给方向（按指针物理移动方向，不取环绕捷径）
-function dragDir(fr, fc, tr, tc) {
+function dragDir(fr: number, fc: number, tr: number, tc: number): Direction | null {
   const dc = tc - fc, dr = tr - fr;
   if (Math.abs(dc) >= Math.abs(dr) && dc !== 0) return dc > 0 ? 'right' : 'left';
   if (dr !== 0) return dr > 0 ? 'down' : 'up';
   return null;
 }
 
-export default function Board({ state, snapKey = 0, onMove, controlHead }) {
+interface BoardProps {
+  state: GameState;
+  snapKey?: number;
+  onMove: (dir: Direction) => void;
+  controlHead?: Cell;
+}
+
+export default function Board({ state, snapKey = 0, onMove, controlHead }: BoardProps) {
   let cell = Math.floor(Math.min(
     (TARGET_W - (state.W - 1) * GAP) / state.W,
     (TARGET_H - (state.H - 1) * GAP) / state.H
@@ -170,21 +184,21 @@ export default function Board({ state, snapKey = 0, onMove, controlHead }) {
   const bh = state.H * stride - GAP;
 
   // 鼠标/触摸：点击相邻格子移动，按下后拖动可连续移动
-  const boardRef = useRef(null);
-  const dragRef = useRef(null); // { last: {r,c} }
+  const boardRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<{ last: Cell } | null>(null);
 
-  const cellFromPoint = (x, y) => {
+  const cellFromPoint = (x: number, y: number): Cell => {
     const c = Math.max(0, Math.min(state.W - 1, Math.floor(x / stride)));
     const r = Math.max(0, Math.min(state.H - 1, Math.floor(y / stride)));
     return { r, c };
   };
 
-  const pointerCell = (e) => {
-    const rect = boardRef.current.getBoundingClientRect();
+  const pointerCell = (e: ReactPointerEvent<HTMLDivElement>): Cell => {
+    const rect = boardRef.current!.getBoundingClientRect();
     return cellFromPoint(e.clientX - rect.left, e.clientY - rect.top);
   };
 
-  const handlePointerDown = (e) => {
+  const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>): void => {
     e.preventDefault();
     e.currentTarget.setPointerCapture && e.currentTarget.setPointerCapture(e.pointerId);
     const cell = pointerCell(e);
@@ -195,7 +209,7 @@ export default function Board({ state, snapKey = 0, onMove, controlHead }) {
     if (dir) onMove(dir);
   };
 
-  const handlePointerMove = (e) => {
+  const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>): void => {
     if (!dragRef.current) return;
     const cell = pointerCell(e);
     const last = dragRef.current.last;
@@ -205,10 +219,10 @@ export default function Board({ state, snapKey = 0, onMove, controlHead }) {
     if (dir) onMove(dir);
   };
 
-  const handlePointerEnd = () => { dragRef.current = null; };
+  const handlePointerEnd = (): void => { dragRef.current = null; };
 
   const tiles = useMemo(() => {
-    const arr = [];
+    const arr: JSX.Element[] = [];
     for (let r = 0; r < state.H; r++) {
       for (let c = 0; c < state.W; c++) {
         const t = tileAt(state, r, c);
@@ -229,7 +243,7 @@ export default function Board({ state, snapKey = 0, onMove, controlHead }) {
 
   // 环绕镜像：把整条蛇（折线 + 蛇头）在四周的等价位置各画一份，配合 viewBox 裁剪，
   // 穿越边界时身体能贴着边缘连续滑出滑入，不会“直接出现在另一边”，也不闪烁。
-  const wrapOffsets = [
+  const wrapOffsets: [number, number][] = [
     [0, 0], [bw, 0], [-bw, 0], [0, bh], [0, -bh],
     [bw, bh], [-bw, -bh], [bw, -bh], [-bw, bh],
   ];
@@ -238,7 +252,7 @@ export default function Board({ state, snapKey = 0, onMove, controlHead }) {
     <div
       ref={boardRef}
       className="board"
-      style={{ '--cell': cell + 'px', width: bw, height: bh }}
+      style={{ '--cell': cell + 'px', width: bw, height: bh } as CSSProperties}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerEnd}

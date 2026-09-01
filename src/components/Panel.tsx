@@ -1,4 +1,11 @@
-export default function Panel({ game, hardMode }) {
+import type { GameState } from '../game';
+
+interface PanelProps {
+  game: GameState;
+  hardMode: boolean;
+}
+
+export default function Panel({ game, hardMode }: PanelProps) {
   const blind = hardMode && game.status === 'playing';
   const statusText = game.status === 'won' ? '到达终点'
     : game.status === 'lost' ? '失败'
